@@ -1,0 +1,205 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * EidCloud Agent Runtime CLI Executable
+ *
+ * @author Eng. MHD. Shadi AL-Hasan <mhd.shadi.alhasan@gmail.com>
+ * @license MIT
+ */
+
+// Autoloading
+$autoloaders = [
+    __DIR__ . '/../vendor/autoload.php',
+    __DIR__ . '/../src/autoload.php',
+];
+
+$loaded = false;
+foreach ($autoloaders as $autoloader) {
+    if (file_exists($autoloader)) {
+        require_once $autoloader;
+        $loaded = true;
+        break;
+    }
+}
+
+if (!$loaded) {
+    fwrite(STDERR, "Error: Could not locate class autoloader.\n");
+    exit(1);
+}
+
+use EidCloud\AgentRuntime\Core\Agent;
+use EidCloud\AgentRuntime\Core\Config;
+
+$version = '1.0.0';
+
+// Command-line arguments parsing
+$argvCopy = $argv;
+array_shift($argvCopy); // strip script name
+
+$options = [
+    'command' => null,
+    'task' => null,
+    'config_file' => null,
+    'mock' => false,
+    'json' => false,
+    'help' => false,
+    'version' => false,
+    'max_steps' => 10,
+    'token_budget' => 8192,
+    'verbose' => false,
+];
+
+while (!empty($argvCopy)) {
+    $arg = array_shift($argvCopy);
+
+    if ($arg === '--help' || $arg === '-h') {
+        $options['help'] = true;
+    } elseif ($arg === '--version' || $arg === '-V') {
+        $options['version'] = true;
+    } elseif ($arg === '--mock' || $arg === '--dry-run') {
+        $options['mock'] = true;
+    } elseif ($arg === '--json') {
+        $options['json'] = true;
+    } elseif ($arg === '--verbose' || $arg === '-v') {
+        $options['verbose'] = true;
+    } elseif (str_starts_with($arg, '--task=')) {
+        $options['task'] = substr($arg, 7);
+    } elseif ($arg === '-t' || $arg === '--task') {
+        $options['task'] = array_shift($argvCopy);
+    } elseif (str_starts_with($arg, '--max-steps=')) {
+        $options['max_steps'] = (int) substr($arg, 12);
+    } elseif (str_starts_with($arg, '--token-budget=')) {
+        $options['token_budget'] = (int) substr($arg, 15);
+    } elseif (str_starts_with($arg, '-')) {
+        // Unknown flag
+    } elseif ($options['command'] === null) {
+        $options['command'] = $arg;
+    } elseif ($options['config_file'] === null && str_ends_with(strtolower($arg), '.json')) {
+        $options['config_file'] = $arg;
+    } elseif ($options['task'] === null) {
+        $options['task'] = $arg;
+    }
+}
+
+// Handle --version
+if ($options['version']) {
+    echo "EidCloud Agent Runtime v{$version} (PHP " . PHP_VERSION . ")\n";
+    exit(0);
+}
+
+// Handle --help
+if ($options['help'] || ($options['command'] === null && empty($options['task']) && empty($options['config_file']))) {
+    showHelp($version);
+    exit(0);
+}
+
+// Execute Command
+if ($options['command'] === 'run' || $options['command'] === null || $options['task'] !== null || $options['config_file'] !== null) {
+    executeRun($options, $version);
+    exit(0);
+}
+
+showHelp($version);
+exit(1);
+
+function showHelp(string $version): void
+{
+    $help = <<<HELP
+\033[1;36m🧠 EidCloud Agent Runtime\033[0m \033[33mv{$version}\033[0m
+Lightweight, model-agnostic AI agent runtime with tool execution, memory, and token budgets.
+
+\033[1mUSAGE:\033[0m
+  php bin/eidcloud-agent run [OPTIONS]
+  php bin/eidcloud-agent run <agent.json> [OPTIONS]
+
+\033[1mCOMMANDS:\033[0m
+  \033[32mrun\033[0m                     Execute an autonomous agent cycle on a task or configuration
+
+\033[1mOPTIONS:\033[0m
+  \033[33m-t, --task="<task>"\033[0m      Prompt / goal for the agent to execute
+  \033[33m--mock\033[0m                  Run in dry-run simulation mode (no external API keys required)
+  \033[33m--json\033[0m                  Output machine-readable execution trace as raw JSON
+  \033[33m--max-steps=<N>\033[0m         Maximum reasoning and tool execution cycles (default: 10)
+  \033[33m--token-budget=<N>\033[0m      Token budget ceiling before halting (default: 8192)
+  \033[33m-v, --verbose\033[0m           Display detailed intermediate observations and thoughts
+  \033[33m-h, --help\033[0m              Display this help message
+  \033[33m-V, --version\033[0m           Show runtime version
+
+\033[1mEXAMPLES:\033[0m
+  \033[90m# Run task with mock tools and simulated reasoning:\033[0m
+  php bin/eidcloud-agent run --task="Inspect project files and count lines" --mock
+
+  \033[90m# Run task and stream machine-readable JSON trace:\033[0m
+  php bin/eidcloud-agent run --task="Inspect project files and count lines" --mock --json
+
+  \033[90m# Execute agent defined in JSON configuration file:\033[0m
+  php bin/eidcloud-agent run agent.json
+
+  \033[90m# Custom token budget and step ceiling:\033[0m
+  php bin/eidcloud-agent run --task="Query database records" --mock --token-budget=4096 --max-steps=5
+
+HELP;
+
+    echo $help;
+}
+
+function executeRun(array $options, string $version): void
+{
+    $configData = [
+        'mock' => $options['mock'],
+        'max_steps' => $options['max_steps'],
+        'token_budget' => $options['token_budget'],
+        'verbose' => $options['verbose'],
+    ];
+
+    if ($options['config_file'] !== null) {
+        if (!file_exists($options['config_file'])) {
+            if ($options['json']) {
+                echo json_encode(['success' => false, 'error' => "Config file not found: {$options['config_file']}"]);
+            } else {
+                fwrite(STDERR, "\033[31mError:\033[0m Config file not found: {$options['config_file']}\n");
+            }
+            exit(1);
+        }
+        $fileConfig = json_decode(file_get_contents($options['config_file']) ?: '{}', true);
+        if (is_array($fileConfig)) {
+            $configData = array_merge($configData, $fileConfig);
+        }
+    }
+
+    if ($options['task'] !== null) {
+        $configData['task'] = $options['task'];
+    }
+
+    if (empty($configData['task'])) {
+        $configData['task'] = 'Inspect project files and count lines';
+    }
+
+    $config = new Config($configData);
+    $agent = new Agent($config);
+
+    if (!$options['json']) {
+        echo "\033[1;36m🧠 EidCloud Agent Runtime\033[0m \033[33mv{$version}\033[0m\n";
+        echo "\033[90m---------------------------------------------------------------\033[0m\n";
+        echo "\033[1mTask:\033[0m {$config->getTask()}\n";
+        echo "\033[1mMode:\033[0m " . ($config->isMockMode() ? "\033[32mMock / Dry-Run (Zero External API Keys)\033[0m" : "\033[33mLive Model\033[0m") . "\n";
+        echo "\033[1mToken Budget:\033[0m {$config->getTokenBudget()} tokens | \033[1mMax Steps:\033[0m {$config->getMaxSteps()}\n";
+        echo "\033[90m---------------------------------------------------------------\033[0m\n\n";
+    }
+
+    $result = $agent->run();
+
+    if ($options['json']) {
+        echo json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
+        return;
+    }
+
+    // Pretty Human Output
+    echo "\033[1;32m✓ Execution Completed\033[0m\n";
+    echo "\033[1mFinal Answer:\033[0m\n  {$result['answer']}\n\n";
+
+    echo $agent->getTrace()->toPrettyString(true) . "\n";
+}

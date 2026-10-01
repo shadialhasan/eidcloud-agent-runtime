@@ -1,0 +1,12 @@
+{
+  "description": "Lightweight, model-agnostic AI agent runtime with tool execution, memory, and token budgets in pure PHP",
+  "topics": [
+    "eidcloud",
+    "ai-agents",
+    "agent-runtime",
+    "tool-calling",
+    "llm-orchestrator",
+    "autonomous-agents",
+    "php8"
+  ]
+}

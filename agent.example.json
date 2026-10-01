@@ -1,0 +1,16 @@
+{
+  "task": "Inspect project files and count lines",
+  "mock": true,
+  "max_steps": 5,
+  "token_budget": 8192,
+  "model": "eidcloud-agent-v1",
+  "system_prompt": "You are EidCloud Autonomous Agent, an intelligent, deterministic problem-solving assistant.",
+  "allowed_tools": [
+    "mock_file_inspector",
+    "mock_database",
+    "mock_calculator",
+    "mock_search",
+    "filesystem"
+  ],
+  "verbose": true
+}

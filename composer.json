@@ -1,0 +1,39 @@
+{
+  "name": "eidcloud/agent-runtime",
+  "description": "Lightweight, model-agnostic AI agent runtime with tool execution, memory, and token budgets in pure PHP",
+  "type": "library",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Eng. MHD. Shadi AL-Hasan",
+      "email": "mhd.shadi.alhasan@gmail.com",
+      "homepage": "https://github.com/shadialhasan"
+    }
+  ],
+  "require": {
+    "php": ">=8.2"
+  },
+  "autoload": {
+    "psr-4": {
+      "EidCloud\\AgentRuntime\\": "src/"
+    },
+    "files": [
+      "src/autoload.php"
+    ]
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "EidCloud\\AgentRuntime\\Tests\\": "tests/"
+    }
+  },
+  "bin": [
+    "bin/eidcloud-agent"
+  ],
+  "scripts": {
+    "test": "php tests/run_tests.php"
+  },
+  "config": {
+    "optimize-autoloader": true,
+    "sort-packages": true
+  }
+}
